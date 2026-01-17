@@ -5,8 +5,12 @@ import { generateRandomPrompt } from "@/lib/promptGenerator";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const key = searchParams.get('key');
+  
+  // Kitni images banani hai (Default 3)
+  const countParam = searchParams.get('count');
+  const imageCount = countParam ? parseInt(countParam) : 3;
 
-  // 1. Security check for Cron job (set this in your .env.local)
+  // 1. Security check
   if (key !== process.env.CRON_SECRET) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
@@ -27,60 +31,61 @@ export async function GET(req: Request) {
   ];
 
   try {
-    const results = [];
-    
-    // Generating 10 images per cron hit
-    for (let i = 0; i < 10; i++) {
+    // Parallel processing ke liye task array banaya
+    const generationPromises = Array.from({ length: imageCount }).map(async () => {
       const config = deviceConfigs[Math.floor(Math.random() * deviceConfigs.length)];
       const category = categories[Math.floor(Math.random() * categories.length)];
       const assignedColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
       
-      // 3. Get Base Prompt with Error Handling
       let basePrompt = "";
       try {
-        // We ensure category is passed correctly. 
-        // If your lib expects specific types, use: category as any
         basePrompt = generateRandomPrompt(category);
       } catch (err) {
         basePrompt = `A high-end ${category} masterpiece`;
       }
 
-      // 4. Final Prompt Engineering (Ensures Color and Quality)
       const finalPrompt = `${basePrompt}, ${assignedColor} color palette, cinematic lighting, 8k resolution, highly detailed, photorealistic`;
       const seed = Math.floor(Math.random() * 2147483647);
 
       // 5. Pollinations Flux API URL
       const apiUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(finalPrompt)}?model=flux&seed=${seed}&width=${config.width}&height=${config.height}&nologo=true&enhance=true`;
 
-      // 6. Fetch using API Key in Headers
+      // 6. Fetch with Website Referrer (Important for Pollinations)
       const response = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${process.env.POLLINATIONS_API_KEY}`
+          'Authorization': `Bearer ${process.env.POLLINATIONS_API_KEY}`,
+          'Referer': 'https://kroma-4k.vercel.app', // <--- Apni website URL yahan likhein
+          'X-Source': 'Kroma4k'
         }
       });
 
       if (response.ok) {
-        // 7. Save to Firestore (Clean Schema: No views, added color)
+        // 7. Save to Firestore
         const docRef = await addDoc(collection(db, "wallpapers"), {
           url: apiUrl,
           prompt: finalPrompt,
           category: category,
-          color: assignedColor, // Crucial for your Palette Filter
+          color: assignedColor,
           device: config.label,
           deviceSlug: config.slug,
           downloads: 0,
-          likes: Math.floor(Math.random() * 8), // Initial trending boost
+          likes: Math.floor(Math.random() * 8),
           createdAt: serverTimestamp(),
           tags: [category.toLowerCase(), assignedColor.toLowerCase(), "4k", "kroma4k"]
         });
-        results.push(docRef.id);
+        return docRef.id;
       }
-    }
+      return null;
+    });
+
+    // Saare tasks ek saath chalenge (Parallel)
+    const results = await Promise.all(generationPromises);
+    const successfulIds = results.filter(id => id !== null);
 
     return new Response(JSON.stringify({ 
         success: true, 
-        count: results.length, 
-        ids: results 
+        count: successfulIds.length, 
+        ids: successfulIds 
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
