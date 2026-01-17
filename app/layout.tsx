@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     siteName: "Kroma4K",
     images: [
       {
-        url: "/og-image.jpg", // Public folder mein ek image rakhen jo website share karte waqt dikhe
+        url: "/og-image.png", // Public folder mein ek image rakhen jo website share karte waqt dikhe
         width: 1200,
         height: 630,
         alt: "Kroma4K AI Wallpaper Gallery",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Kroma4K | 8K AI Wallpapers",
     description: "The future of digital backgrounds.",
-    images: ["/og-image.jpg"],
+    images: ["/og-image.png"],
   },
 
   icons: {

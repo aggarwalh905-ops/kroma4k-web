@@ -121,28 +121,50 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Dynamic Aspect Ratio Related Visuals */}
+        {/* Related Visuals Section */}
         <div className="p-10 border-t border-white/5 bg-black/30">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 mb-8 flex items-center gap-3">
+        <div className="flex items-center justify-between mb-8">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 flex items-center gap-3">
             <span className="w-8 h-[1px] bg-white/10"></span>
             Related Kroma Visuals
-          </h4>
-          <div className="flex gap-6 overflow-x-auto no-scrollbar pb-4">
+            </h4>
+            
+            {/* Scroll Hint for Desktop */}
+            <div className="hidden md:flex items-center gap-2 text-[8px] font-bold text-blue-500/50 uppercase tracking-[0.2em]">
+            <span>Shift + Scroll to explore</span>
+            <div className="w-10 h-[1px] bg-blue-500/30"></div>
+            </div>
+        </div>
+
+        <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6 cursor-grab active:cursor-grabbing">
             {relatedImages.map((related: any) => (
-              <Link 
+            <Link 
                 key={related.id} 
                 href={`/wallpaper/${related.id}`}
-                className={`rounded-[2rem] overflow-hidden border border-white/5 hover:border-blue-600 transition-all shrink-0 bg-[#111] group relative
-                  ${img.deviceSlug === 'iphone' || img.deviceSlug === 'samsung' ? 'w-[160px] aspect-[9/16]' : 'w-[280px] aspect-video'}
+                className={`rounded-[2rem] overflow-hidden border border-white/5 hover:border-blue-600/50 transition-all shrink-0 bg-[#111] group relative shadow-xl
+                ${img.deviceSlug === 'iphone' || img.deviceSlug === 'samsung' ? 'w-[180px] aspect-[9/16]' : 'w-[320px] aspect-video'}
                 `}
-              >
-                <img src={related.url} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt="Related Asset" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                  <p className="text-[8px] font-black text-white tracking-widest uppercase">View Asset</p>
+            >
+                <img 
+                src={related.url} 
+                className="w-full h-full object-cover opacity-50 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 ease-out" 
+                alt="Related Asset" 
+                />
+                
+                {/* Overlay on Hover */}
+                <div className="absolute inset-0 bg-gradient-to-t from-blue-900/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-6">
+                <p className="text-[9px] font-black text-white tracking-[0.2em] uppercase">Open Archive</p>
                 </div>
-              </Link>
+            </Link>
             ))}
-          </div>
+
+            {/* Empty State if no related found */}
+            {relatedImages.length === 0 && (
+            <div className="w-full py-10 border border-dashed border-white/5 rounded-[2rem] flex items-center justify-center text-gray-600 text-[10px] uppercase tracking-widest">
+                No matching assets in this series
+            </div>
+            )}
+        </div>
         </div>
       </div>
     </div>
