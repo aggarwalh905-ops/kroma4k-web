@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Heart, Share2, Download, Copy, Check, Sparkles } from "lucide-react";
+import { Heart, Share2, Download, Loader2, Copy, Check, Sparkles } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc, increment, onSnapshot } from "firebase/firestore";
 
@@ -9,6 +9,8 @@ export default function WallpaperActions({ imgId, imgUrl, initialLikes, prompt }
   const [isLiked, setIsLiked] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [selectedImg, setSelectedImg] = useState<any>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "wallpapers", imgId), (doc) => {
@@ -26,6 +28,23 @@ export default function WallpaperActions({ imgId, imgUrl, initialLikes, prompt }
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     }
+  };
+
+  const handleDownload = async (url: string, filename: string) => {
+    setDownloading(true);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `Kroma4K-${filename.replace(/\s+/g, '-').toLowerCase()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) { console.error(err); }
+    finally { setDownloading(false); }
   };
 
   return (
@@ -63,21 +82,24 @@ export default function WallpaperActions({ imgId, imgUrl, initialLikes, prompt }
         </button>
 
         <button 
-          onClick={() => copyToClipboard(window.location.href, 'link')}
-          className="px-8 py-5 rounded-[2rem] bg-white/5 border border-white/10 text-gray-400 hover:bg-white hover:text-black transition-all"
-        >
-          {copiedLink ? <Check size={18} className="text-green-500"/> : <Share2 size={18} />}
-        </button>
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: 'Kroma4K | ' + selectedImg.category, url: window.location.href });
+                    }
+                  }} 
+                  className="w-full py-4 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-colors"
+                >
+                  <Share2 size={14}/> Share Architecture
+                </button>
       </div>
 
-      <a 
-        href={imgUrl} 
-        target="_blank" 
-        download 
-        className="w-full bg-blue-600 py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 transition-all hover:bg-blue-500 shadow-2xl shadow-blue-600/30 active:scale-95"
-      >
-        <Download size={20}/> Download 8K Original
-      </a>
+      <button 
+                        onClick={() => handleDownload(selectedImg.url, selectedImg.category)}
+                        disabled={downloading}
+                        className="w-full bg-blue-600 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:bg-blue-500 hover:scale-[1.01] active:scale-95 disabled:opacity-50 shadow-xl shadow-blue-600/20"
+                      >
+                        {downloading ? <Loader2 className="animate-spin" /> : <><Download size={18}/> Download 8K</>}
+                      </button>
     </div>
   );
 }
