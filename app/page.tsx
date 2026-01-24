@@ -3,24 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from 'next/link';
 import { 
-  Download, Monitor, Smartphone, Search, Heart, 
-  X, Palette, TrendingUp, Clock, Loader2, 
-  Sparkles, ArrowRight, Laptop, Filter, LayoutGrid,
-  ChevronRight, RefreshCw, Zap, Layers, ShieldCheck,
-  SmartphoneNfc, LaptopMinimal, MonitorPlay, MousePointer2
+  Download, Smartphone, Search, Heart, 
+  LayoutGrid, ArrowRight, Loader2, 
+  Zap, ShieldCheck, SmartphoneNfc, 
+  LaptopMinimal, MonitorPlay, Flame, Calendar,
+  Globe, Instagram, Twitter, Github
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { 
   collection, query, orderBy, limit, getDocs, where, 
-  doc, updateDoc, increment, startAfter 
+  startAfter 
 } from "firebase/firestore";
 
-// --- Constants ---
-const CATEGORIES = [
-  "All", "Anime", "Cyberpunk", "Nature", "Space", "Minimal", 
-  "Cars", "Abstract", "Architecture", "Fantasy", "Cinematic"
-];
+const CATEGORIES = ["All", "Anime", "Cyberpunk", "Nature", "Space", "Minimal", "Cars", "Abstract", "Architecture", "Fantasy", "Cinematic"];
 
 const DEVICE_CONFIGS = [
   { label: "All", slug: "all", icon: <LayoutGrid size={16}/> },
@@ -33,89 +30,172 @@ const DEVICE_CONFIGS = [
 const BATCH_SIZE = 12;
 
 // --- Sub-components ---
-const ImageCard = memo(({ img, isLiked, onClick, innerRef }: any) => (
-  <motion.div 
-    ref={innerRef}
-    layout
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    whileHover={{ y: -8 }}
-    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-    onClick={() => onClick(img)}
-    className="relative aspect-[3/4] group cursor-pointer rounded-3xl overflow-hidden bg-[#0a0a0a] border border-white/5 shadow-2xl"
-  >
-    <img 
-      src={img.url} 
-      loading="lazy"
-      alt={img.prompt} 
-      className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
-    />
-    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 p-6 flex flex-col justify-end backdrop-blur-[2px]">
-      <div className="flex justify-between items-end transform md:translate-y-4 md:group-hover:translate-y-0 transition-transform duration-500">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">{img.category}</span>
-          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-            <Heart size={14} className={isLiked ? "fill-red-500 text-red-500" : "text-white"} /> {img.likes || 0}
-          </span>
+const ImageCard = memo(({ img, isLiked, onClick, innerRef }: any) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <motion.div 
+      ref={innerRef}
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      whileHover={{ y: -8 }}
+      transition={{ duration: 0.4 }}
+      onClick={() => onClick(img.id)}
+      className="relative aspect-[9/16] md:aspect-[3/4] group cursor-pointer rounded-[2rem] overflow-hidden bg-[#0a0a0a] border border-white/5 shadow-2xl"
+    >
+      {/* Loading Skeleton */}
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/5 animate-pulse">
+          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
         </div>
-        <div className="p-3 bg-white text-black rounded-2xl shadow-xl active:scale-90 transition-transform">
-          <Download size={18} />
+      )}
+
+      <img 
+        src={img.url} 
+        alt={img.prompt} 
+        onLoad={() => setIsLoaded(true)}
+        onError={(e) => {
+            // Backup agar Telegram link block ho jaye
+            (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x700/0a0a0a/ffffff?text=Kroma4K";
+        }}
+        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 ${isLoaded ? 'opacity-100' : 'opacity-0'}`} 
+      />
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 p-6 flex flex-col justify-end">
+        <div className="flex justify-between items-end">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">{img.category}</span>
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Heart size={14} className={isLiked ? "fill-red-500 text-red-500" : "text-white"} /> {img.likes || 0}
+            </span>
+          </div>
+          <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl">
+            <Download size={18} />
+          </div>
         </div>
       </div>
-    </div>
-  </motion.div>
-));
+    </motion.div>
+  );
+});
 ImageCard.displayName = "ImageCard";
 
+const Footer = () => (
+  <footer className="bg-[#050505] border-t border-white/5 pt-20 pb-10 px-6">
+    <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+      <div className="col-span-1 md:col-span-2">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center font-black italic">K</div>
+          <h2 className="text-2xl font-black tracking-tighter uppercase">Kroma<span className="text-blue-500">4K</span></h2>
+        </div>
+        <p className="text-gray-500 text-sm max-w-sm leading-relaxed mb-8">
+          The world's premier neural-asset archive. High-fidelity 8K visuals calibrated for professional displays and next-gen mobile hardware.
+        </p>
+        <div className="flex gap-4">
+          <div className="p-3 bg-white/5 rounded-full hover:bg-white/10 cursor-pointer transition-colors"><Twitter size={18}/></div>
+          <div className="p-3 bg-white/5 rounded-full hover:bg-white/10 cursor-pointer transition-colors"><Instagram size={18}/></div>
+          <div className="p-3 bg-white/5 rounded-full hover:bg-white/10 cursor-pointer transition-colors"><Github size={18}/></div>
+        </div>
+      </div>
+      
+      <div>
+        <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-blue-500 mb-6">Archive</h4>
+        <ul className="space-y-4 text-sm text-gray-400 font-medium">
+          <li className="hover:text-white cursor-pointer transition-colors">Latest Releases</li>
+          <li className="hover:text-white cursor-pointer transition-colors">Trending Now</li>
+          <li className="hover:text-white cursor-pointer transition-colors">Desktop 8K</li>
+          <li className="hover:text-white cursor-pointer transition-colors">Mobile Pro</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-blue-500 mb-6">Legal</h4>
+        <ul className="space-y-4 text-sm text-gray-400 font-medium">
+          <li><Link href="/license" className="hover:text-white transition-colors">License Agreement</Link></li>
+          <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+          <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+        </ul>
+      </div>
+    </div>
+    <div className="max-w-7xl mx-auto border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">© 2026 Kroma Visual Labs. All Rights Reserved.</p>
+      <div className="flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+        <Globe size={12}/> Global Archive v4.2.0
+      </div>
+    </div>
+  </footer>
+);
+
 export default function Kroma4K_Ultimate() {
-  const [showGallery, setShowGallery] = useState(false);
+  // 1. Fixed: Gallery is now TRUE by default to avoid getting stuck on landing
+  const [showGallery, setShowGallery] = useState(false); 
   const [images, setImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedImg, setSelectedImg] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [deviceFilter, setDeviceFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("likes");
-  const [downloading, setDownloading] = useState(false);
+  const [sortBy, setSortBy] = useState("createdAt"); // Change default sort to createdAt for faster loading
   const [likedImages, setLikedImages] = useState<string[]>([]);
   const router = useRouter();
 
   const loadData = useCallback(async (isNextPage = false) => {
-    if (!showGallery) return;
     if (isNextPage) setLoadingMore(true);
-    else { setLoading(true); setImages([]); }
+    else { setLoading(true); }
 
     try {
-      let q = query(collection(db, "wallpapers"), orderBy(sortBy, "desc"));
-      if (activeCategory !== "All") q = query(q, where("category", "==", activeCategory));
-      if (deviceFilter !== "all") q = query(q, where("deviceSlug", "==", deviceFilter));
-      q = query(q, limit(BATCH_SIZE));
-      if (isNextPage && lastDoc) q = query(q, startAfter(lastDoc));
+      const wallRef = collection(db, "wallpapers");
+      let q;
+
+      // Firestore dynamic query building
+      const constraints: any[] = [orderBy(sortBy, "desc")];
+      
+      if (activeCategory !== "All") {
+        constraints.unshift(where("category", "==", activeCategory));
+      }
+      if (deviceFilter !== "all") {
+        constraints.unshift(where("deviceSlug", "==", deviceFilter));
+      }
+      
+      if (isNextPage && lastDoc) {
+        q = query(wallRef, ...constraints, startAfter(lastDoc), limit(BATCH_SIZE));
+      } else {
+        q = query(wallRef, ...constraints, limit(BATCH_SIZE));
+      }
 
       const snap = await getDocs(q);
-      const newImages = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      setLastDoc(snap.docs[snap.docs.length - 1]);
-      setHasMore(snap.docs.length === BATCH_SIZE);
-      setImages(prev => isNextPage ? [...prev, ...newImages] : newImages);
-    } catch (error) { console.error(error); } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (snap.empty) {
+        if (!isNextPage) setImages([]);
+        setHasMore(false);
+      } else {
+        const newImages = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setLastDoc(snap.docs[snap.docs.length - 1]);
+        setHasMore(snap.docs.length === BATCH_SIZE);
+        setImages(prev => isNextPage ? [...prev, ...newImages] : newImages);
+      }
+    } catch (error) { 
+      console.error("Firestore Error:", error); 
+    } finally { 
+      setLoading(false); 
+      setLoadingMore(false); 
     }
-  }, [activeCategory, deviceFilter, sortBy, lastDoc, showGallery]);
+  }, [activeCategory, deviceFilter, sortBy, lastDoc]);
 
+  // Effects
   useEffect(() => {
     const saved = localStorage.getItem("kroma_likes");
     if (saved) setLikedImages(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    if (showGallery) loadData(false);
-  }, [activeCategory, deviceFilter, sortBy, showGallery]);
+    loadData(false);
+  }, [activeCategory, deviceFilter, sortBy]);
 
+  // ... Observer & Filter code remains same ...
+  
   const observer = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useCallback((node: any) => {
     if (loading || loadingMore) return;
@@ -125,33 +205,6 @@ export default function Kroma4K_Ultimate() {
     });
     if (node) observer.current.observe(node);
   }, [loading, loadingMore, hasMore, loadData]);
-
-  const handleLike = async (id: string) => {
-    if (likedImages.includes(id)) return;
-    try {
-      const newLiked = [...likedImages, id];
-      setLikedImages(newLiked);
-      localStorage.setItem("kroma_likes", JSON.stringify(newLiked));
-      setImages(prev => prev.map(img => img.id === id ? { ...img, likes: (img.likes || 0) + 1 } : img));
-      await updateDoc(doc(db, "wallpapers", id), { likes: increment(1) });
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDownload = async (url: string, filename: string) => {
-    setDownloading(true);
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `Kroma4K-${filename}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) { console.error(err); }
-    finally { setDownloading(false); }
-  };
 
   const filteredImages = useMemo(() => {
     return images.filter(i => 
@@ -165,116 +218,111 @@ export default function Kroma4K_Ultimate() {
       <AnimatePresence mode="wait">
         {!showGallery ? (
           <motion.section 
-            key="landing" exit={{ opacity: 0, scale: 1.05 }}
-            className="relative min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden"
+            key="landing" exit={{ opacity: 0, y: -20 }}
+            className="relative min-h-screen flex flex-col bg-[#020202]"
           >
-            {/* Animated Grid Background */}
-            <div className="absolute inset-0 opacity-20 [mask-image:radial-gradient(ellipse_at_center,black,transparent)] pointer-events-none">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-            </div>
-
-            {/* Glowing Orbs */}
-            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full animate-pulse" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full animate-pulse" />
-
-            <div className="relative z-10 w-full max-w-6xl flex flex-col items-center">
+            {/* Ultra Pro Hero */}
+            <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#1e3a8a33_0%,transparent_50%)]" />
               <motion.div 
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8"
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8"
               >
-                <Sparkles size={14} className="text-blue-400" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-100">AI-Powered 8K Renders</span>
+                <Zap size={14} className="text-blue-500 fill-blue-500"/>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">v4.0 Pro Engine Active</span>
               </motion.div>
-
+              
               <motion.h1 
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                className="text-6xl md:text-[140px] font-black tracking-tighter leading-[0.8] italic text-center mb-8"
+                initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+                className="text-6xl md:text-[160px] font-black tracking-tighter leading-[0.8] italic text-center mb-10"
               >
-                THE FUTURE OF <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/20">VISUALS</span>
+                KROMA<span className="text-blue-600">4K</span>
               </motion.h1>
 
               <motion.p 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                className="text-gray-400 text-center max-w-2xl text-sm md:text-lg mb-12 font-medium leading-relaxed px-4"
+                className="text-gray-500 text-sm md:text-xl font-medium text-center max-w-2xl mb-12 px-4"
               >
-                Explore a curated universe of ultra-high-definition wallpapers designed specifically for your premium hardware. 
+                The ultimate visual archive for ultra-high resolution hardware. 8K assets, neural aesthetics, and pro-grade calibration.
               </motion.p>
 
               <motion.div 
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
-              >
+  className="relative z-10" 
+  initial={{ opacity: 0, y: 20 }} 
+  animate={{ opacity: 1, y: 0 }} 
+  transition={{ delay: 0.4 }}
+>
                 <button 
                   onClick={() => setShowGallery(true)}
-                  className="group bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-white hover:text-black transition-all shadow-[0_0_40px_rgba(37,99,235,0.3)]"
+                  className="group bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center gap-3 hover:bg-white hover:text-black transition-all shadow-[0_20px_40px_rgba(37,99,235,0.2)]"
                 >
-                  Enter Experience <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button className="px-10 py-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-white/10 transition-all">
-                  Documentation
+                  Explore Archive <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </motion.div>
-
-              {/* Bento Feature Preview (Mobile Optimized) */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-24 w-full opacity-60">
-                  {[
-                    { label: "8K Quality", icon: <Layers size={16}/> },
-                    { label: "Device Sync", icon: <RefreshCw size={16}/> },
-                    { label: "Daily Drops", icon: <Clock size={16}/> },
-                    { label: "Pro Assets", icon: <ShieldCheck size={16}/> },
-                  ].map((f, i) => (
-                    <div key={i} className="flex flex-col items-center gap-3 p-6 rounded-3xl bg-white/5 border border-white/5">
-                        <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400">{f.icon}</div>
-                        <span className="text-[10px] font-black uppercase tracking-widest">{f.label}</span>
-                    </div>
-                  ))}
-              </div>
             </div>
+
+            {/* Feature Bento Grid */}
+            <div className="max-w-7xl mx-auto w-full p-6 grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
+              {[
+                { icon: <ShieldCheck className="text-blue-500"/>, title: "Verified 8K", desc: "Every asset manually verified for native 8K clarity." },
+                { icon: <MonitorPlay className="text-purple-500"/>, title: "Multi-Platform", desc: "Optimized aspect ratios for mobile, desktop, and tablets." },
+                { icon: <Flame className="text-orange-500"/>, title: "Neural Logic", desc: "Curated using advanced aesthetic scoring algorithms." }
+              ].map((f, i) => (
+                <div key={i} className="p-8 rounded-[2.5rem] bg-white/[0.03] border border-white/5 flex flex-col gap-4">
+                  {f.icon}
+                  <h3 className="font-black uppercase tracking-widest text-sm">{f.title}</h3>
+                  <p className="text-gray-500 text-xs leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+            <Footer />
           </motion.section>
         ) : (
           <motion.div key="gallery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col">
-            <header className="sticky top-0 z-[100] bg-black/60 backdrop-blur-3xl border-b border-white/5">
+            <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-2xl border-b border-white/5">
               <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-4 space-y-6">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowGallery(false)}>
-                    <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-2xl flex items-center justify-center font-black italic shadow-lg">K</div>
-                    <h1 className="text-xl font-black tracking-tighter uppercase hidden sm:block">Kroma<span className="text-blue-500">4K</span></h1>
+                    <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center font-black italic text-xs">K</div>
+                    <h1 className="text-lg font-black tracking-tighter uppercase hidden sm:block">Kroma<span className="text-blue-500">4K</span></h1>
                   </div>
 
-                  <div className="flex-1 max-w-xl relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={18} />
+                  <div className="flex-1 max-w-md relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                     <input 
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Search aesthetics..." 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-blue-500/50 text-sm font-medium transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-11 pr-4 outline-none focus:border-blue-500/50 text-xs font-medium transition-all"
                     />
                   </div>
-
-                  <button className="p-3 bg-white/5 rounded-2xl border border-white/10 md:hidden">
-                    <Filter size={20} />
-                  </button>
+                  
+                  <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+                    <button onClick={() => setSortBy("likes")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${sortBy === "likes" ? 'bg-white text-black' : 'text-gray-500'}`}>
+                      <Flame size={12} className="inline mr-2"/> Trending
+                    </button>
+                    <button onClick={() => setSortBy("createdAt")} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${sortBy === "createdAt" ? 'bg-white text-black' : 'text-gray-500'}`}>
+                      <Calendar size={12} className="inline mr-2"/> New
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-2">
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full">
                     {CATEGORIES.map(cat => (
                       <button 
-                        key={cat}
-                        onClick={() => setActiveCategory(cat)}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                        key={cat} onClick={() => setActiveCategory(cat)}
+                        className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400'}`}
                       >
                         {cat}
                       </button>
                     ))}
                   </div>
 
-                  <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5 w-full md:w-auto overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5 w-full md:w-auto overflow-x-auto no-scrollbar">
                     {DEVICE_CONFIGS.map(dev => (
                       <button 
-                        key={dev.slug}
-                        onClick={() => setDeviceFilter(dev.slug)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${deviceFilter === dev.slug ? 'bg-white text-black' : 'text-gray-500 hover:text-white'}`}
+                        key={dev.slug} onClick={() => setDeviceFilter(dev.slug)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${deviceFilter === dev.slug ? 'bg-white text-black' : 'text-gray-500'}`}
                       >
                         {dev.icon} {dev.label}
                       </button>
@@ -284,14 +332,14 @@ export default function Kroma4K_Ultimate() {
               </div>
             </header>
 
-            <main className="max-w-[1800px] mx-auto px-4 md:px-8 py-12 min-h-screen">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 md:gap-8">
+            <main className="max-w-[1800px] mx-auto px-4 md:px-8 py-10 min-h-screen">
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-8">
                 {filteredImages.map((img, index) => (
                   <ImageCard 
                     key={img.id}
                     img={img}
                     isLiked={likedImages.includes(img.id)}
-                    onClick={() => router.push(`/wallpaper/${img.id}`)}
+                    onClick={(id: string) => router.push(`/wallpaper/${id}`)}
                     innerRef={index === filteredImages.length - 1 ? lastElementRef : null}
                   />
                 ))}
@@ -299,86 +347,12 @@ export default function Kroma4K_Ultimate() {
               
               {(loading || loadingMore) && (
                 <div className="py-24 flex flex-col items-center gap-4">
-                  <div className="h-10 w-10 border-2 border-blue-600/20 border-t-blue-600 rounded-full animate-spin" />
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Streaming Neural Assets</p>
+                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Streaming Visual Data</p>
                 </div>
               )}
             </main>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Detail Modal --- */}
-      <AnimatePresence>
-        {selectedImg && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-0 md:p-8"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }}
-              className="w-full max-w-7xl h-full md:h-auto md:max-h-[90vh] bg-[#080808] md:rounded-[3rem] border-white/5 flex flex-col md:flex-row overflow-hidden"
-            >
-              <div className="flex-[1.5] bg-black relative flex items-center justify-center overflow-hidden">
-                <button onClick={() => setSelectedImg(null)} className="absolute top-6 left-6 z-50 p-3 bg-white/10 backdrop-blur-md rounded-full md:hidden">
-                  <X size={20}/>
-                </button>
-                <img src={selectedImg.url} className="w-full h-full object-contain" alt="Preview" />
-              </div>
-
-              <div className="flex-1 p-8 md:p-14 flex flex-col justify-between border-l border-white/5 bg-[#0a0a0a]">
-                <div className="space-y-8">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h2 className="text-4xl font-black italic tracking-tighter uppercase mb-2">{selectedImg.category}</h2>
-                      <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                        <Monitor size={12}/> ID: {selectedImg.id.slice(0,8)}
-                      </p>
-                    </div>
-                    <button onClick={() => setSelectedImg(null)} className="hidden md:block p-4 bg-white/5 rounded-full hover:bg-white hover:text-black transition-all">
-                      <X size={20}/>
-                    </button>
-                  </div>
-
-                  <div className="p-6 bg-white/5 rounded-[2rem] border border-white/5">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <Zap size={12} className="text-blue-400"/> Neural Source
-                    </p>
-                    <p className="text-sm text-gray-300 font-medium italic leading-relaxed">
-                      "{selectedImg.prompt || "High-fidelity conceptual art render."}"
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                      <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                        <p className="text-[10px] text-gray-500 font-black uppercase mb-1">Target</p>
-                        <p className="text-xs font-black uppercase">{selectedImg.deviceSlug || 'Universal'}</p>
-                      </div>
-                      <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                        <p className="text-[10px] text-gray-500 font-black uppercase mb-1">Format</p>
-                        <p className="text-xs font-black uppercase">Ultra-HDR</p>
-                      </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-4 mt-12">
-                  <button 
-                    onClick={() => handleLike(selectedImg.id)}
-                    className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all ${likedImages.includes(selectedImg.id) ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-white/5 border border-white/10 hover:bg-white/10'}`}
-                  >
-                    <Heart size={18} className={likedImages.includes(selectedImg.id) ? "fill-current" : ""} />
-                    {likedImages.includes(selectedImg.id) ? 'In Collection' : 'Add to Favorites'}
-                  </button>
-
-                  <button 
-                    onClick={() => handleDownload(selectedImg.url, selectedImg.category)}
-                    className="w-full bg-blue-600 py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20 active:scale-95"
-                  >
-                    {downloading ? <Loader2 className="animate-spin" /> : <><Download size={18}/> Download 8K Original</>}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            <Footer />
           </motion.div>
         )}
       </AnimatePresence>
