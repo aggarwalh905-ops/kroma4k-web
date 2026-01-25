@@ -1,18 +1,38 @@
 import { Metadata } from 'next';
-import { ShieldCheck, X, Palette, LayoutGrid, Zap, Info, ArrowLeft } from "lucide-react";
+import { ShieldCheck, X, Palette, LayoutGrid, Zap, Info } from "lucide-react";
 import Link from 'next/link';
-import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, where, limit, getDocs, orderBy } from "firebase/firestore";
 import { notFound } from 'next/navigation';
 import WallpaperActions from "@/components/WallpaperAction";
 
-// --- Metadata Generation ---
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+// --- Supabase Client ---
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const COLOR_MAP: Record<string, string> = {
+  blue: "#3b82f6", red: "#ef4444", purple: "#a855f7", 
+  green: "#22c55e", orange: "#f97316", pink: "#ec4899", 
+  dark: "#1a1a1a", white: "#ffffff", yellow: "#eab308"
+};
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+// --- Metadata Generation (Supabase) ---
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const docSnap = await getDoc(doc(db, "wallpapers", id));
   
-  if (!docSnap.exists()) return { title: "Not Found | Kroma4K" };
-  const img = docSnap.data();
+  const { data: img } = await supabase
+    .from('wallpapers')
+    .select('category, prompt, url')
+    .eq('id', id)
+    .single();
+
+  if (!img) return { title: "Not Found | Kroma4K" };
 
   return {
     title: `${img.category} | Kroma4K Pro Edition`,
@@ -21,31 +41,28 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-const COLOR_MAP: Record<string, string> = {
-  blue: "#3b82f6", red: "#ef4444", purple: "#a855f7", 
-  green: "#22c55e", orange: "#f97316", pink: "#ec4899", 
-  dark: "#1a1a1a", white: "#ffffff", yellow: "#eab308"
-};
-
-export default async function WallpaperPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WallpaperPage({ params }: PageProps) {
   const { id } = await params;
-  const docSnap = await getDoc(doc(db, "wallpapers", id));
 
-  if (!docSnap.exists()) notFound();
-  const img = docSnap.data();
+  // 1. Fetch Main Wallpaper
+  const { data: img, error: imgError } = await supabase
+    .from('wallpapers')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-  // Optimized Related Query: Finds images in same category but excludes current ID
-  const relatedQuery = query(
-    collection(db, "wallpapers"), 
-    where("category", "==", img.category),
-    limit(12)
-  );
-  
-  const relatedSnap = await getDocs(relatedQuery);
-  const relatedImages = relatedSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(d => d.id !== id)
-    .slice(0, 8); // Ensure exactly 8 related items
+  if (imgError || !img) notFound();
+
+  // 2. Fetch Related Assets (Same category, excluding current ID)
+  const { data: relatedImages } = await supabase
+    .from('wallpapers')
+    .select('id, url, category, device_slug')
+    .eq('category', img.category)
+    .neq('id', id) // Exclude current image
+    .limit(8)
+    .order('created_at', { ascending: false });
+
+  const finalRelated = relatedImages || [];
 
   return (
     <div className="min-h-screen bg-[#020202] flex items-center justify-center p-0 md:p-6 lg:p-10 selection:bg-blue-600 selection:text-white">
@@ -79,7 +96,6 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-col lg:flex-row">
           {/* VISUAL PREVIEW AREA */}
           <div className="flex-[1.3] p-4 md:p-10 lg:p-16 flex items-center justify-center bg-black/60 relative overflow-hidden group">
-            {/* Ambient Background Glow */}
             <div 
               className="absolute inset-0 opacity-20 blur-[120px] pointer-events-none" 
               style={{ backgroundColor: COLOR_MAP[img.color?.toLowerCase()] || '#3b82f6' }}
@@ -105,7 +121,6 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
               </h2>
             </header>
 
-            {/* Spec Grid */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5">
                 <p className="text-[9px] text-gray-500 font-black mb-2 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -128,17 +143,15 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
 
-            {/* Client-Side Interactive Component */}
             <div className="bg-white/5 p-1 rounded-[2.5rem] border border-white/5">
                 <WallpaperActions 
-                imgId={id} 
-                imgUrl={img.url} 
-                initialLikes={img.likes || 0}
-                prompt={img.prompt || "Neural-generated 8K masterpiece."}
+                  imgId={id} 
+                  imgUrl={img.url} 
+                  initialLikes={img.likes || 0}
+                  prompt={img.prompt || "Neural-generated 8K masterpiece."}
                 />
             </div>
 
-            {/* Hardware Compatibility */}
             <div className="pt-8 border-t border-white/5 flex items-start gap-4">
                <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center shrink-0">
                  <Info size={16} className="text-blue-500" />
@@ -146,7 +159,7 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
                <div className="space-y-1">
                  <p className="text-[10px] text-white font-black uppercase tracking-widest">Hardware Calibration</p>
                  <p className="text-[10px] text-gray-500 font-medium leading-relaxed uppercase">
-                   Optimized for <span className="text-blue-400">{img.deviceSlug || 'Universal'}</span> panels. Native bit-depth preserved for OLED/Mini-LED displays.
+                   Optimized for <span className="text-blue-400">{img.device_slug || 'Universal'}</span> panels. Native bit-depth preserved for OLED/Mini-LED displays.
                  </p>
                </div>
             </div>
@@ -165,12 +178,12 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
-              {relatedImages.map((related: any) => (
+              {finalRelated.map((related: any) => (
                 <Link 
                     key={related.id} 
                     href={`/wallpaper/${related.id}`}
                     className={`group relative rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0a] transition-all duration-500 hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(37,99,235,0.1)]
-                    ${img.deviceSlug === 'iphone' || img.deviceSlug === 'samsung' ? 'aspect-[9/16]' : 'aspect-video'}
+                    ${related.device_slug === 'iphone' || related.device_slug === 'samsung' ? 'aspect-[9/16]' : 'aspect-video'}
                     `}
                 >
                     <img 
@@ -184,7 +197,7 @@ export default async function WallpaperPage({ params }: { params: Promise<{ id: 
                 </Link>
               ))}
 
-              {relatedImages.length === 0 && (
+              {finalRelated.length === 0 && (
                 <div className="col-span-full py-20 border border-dashed border-white/5 rounded-[2rem] flex flex-col items-center justify-center gap-4">
                     <LayoutGrid className="text-gray-800" size={40} />
                     <p className="text-gray-600 text-[10px] uppercase tracking-[0.3em]">End of Archive Series</p>
