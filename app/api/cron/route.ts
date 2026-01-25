@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // Imports change karein
 import { createClient } from '@supabase/supabase-js';
 import { generateRandomPrompt } from "@/lib/promptGenerator";
