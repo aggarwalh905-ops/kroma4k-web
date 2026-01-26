@@ -54,7 +54,7 @@ const ImageCard = memo(({ img, isLiked, onClick, innerRef }: any) => {
         alt={img.prompt || "Wallpaper"} 
         onLoad={() => setIsLoaded(true)}
         onError={(e) => {
-            (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x700/0a0a0a/ffffff?text=Kroma4K";
+            (e.target as HTMLImageElement).src = "https://placehold.co/400x700/0a0a0a/ffffff?text=Kroma4K";
         }}
         className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0'}`} 
       />

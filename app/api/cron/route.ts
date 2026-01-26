@@ -29,6 +29,7 @@ export async function GET(req: Request) {
   const deviceConfigs = [
     { label: "iPhone 15 Pro", width: 1179, height: 2556, slug: "iphone" },
     { label: "Samsung S24 Ultra", width: 1440, height: 3120, slug: "samsung" },
+    { label: "MacBook Pro 16", width: 3456, height: 2234, slug: "laptop" },
     { label: "Desktop 4K", width: 3840, height: 2160, slug: "desktop" }
   ];
 
@@ -55,7 +56,6 @@ export async function GET(req: Request) {
 
       console.log(`🔗 API URL: ${apiUrl}`);
 
-      // --- VERIFY POLLINATIONS ---
       const check = await fetch(apiUrl, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${process.env.POLLINATIONS_API_KEY}` }
@@ -76,7 +76,6 @@ export async function GET(req: Request) {
               prompt: finalPrompt,
               category: category,
               color: assignedColor,
-              device: config.label,
               device_slug: config.slug,
               downloads: 0,
               likes: Math.floor(Math.random() * 8),
@@ -91,7 +90,7 @@ export async function GET(req: Request) {
         }
         console.log(`💾 Saved to DB: ${newId}`);
 
-        // --- STEP 2: TELEGRAM POST (Custom Format) ---
+        // --- STEP 2: TELEGRAM POST & PERMANENT URL FETCH ---
         try {
           const viewUrl = `https://kroma-4k.vercel.app/wallpaper/${record.id}`;
           const hashtags = tagList.map(t => `#${t.replace(/\s+/g, '')}`).join(' ');
@@ -104,7 +103,7 @@ export async function GET(req: Request) {
             `${hashtags}\n\n` +
             `🚀 <b>Join:</b> @Kroma_4K`;
 
-          console.log("📤 Sending to Telegram with custom caption...");
+          console.log("📤 Sending to Telegram...");
           
           const tgRes = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
             method: 'POST',
@@ -122,10 +121,32 @@ export async function GET(req: Request) {
           });
 
           const tgData = await tgRes.json();
+          
           if (tgData.ok) {
-            console.log("✅ Telegram Post Success!");
-            const tgPostLink = `https://t.me/Kroma_4K/${tgData.result.message_id}`;
-            await supabase.from('wallpapers').update({ url: tgPostLink, is_migrated: true }).eq('id', record.id);
+            console.log("✅ Telegram Post Success! Fetching permanent file URL...");
+            
+            // Get the File ID of the highest resolution photo
+            const photos = tgData.result.photo;
+            const fileId = photos[photos.length - 1].file_id;
+
+            // Use getFile to get the direct path
+            const fileInfoRes = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
+            const fileInfo = await fileInfoRes.json();
+
+            if (fileInfo.ok) {
+              // Construct the direct CDN URL that works in <img> tags
+              const permanentImageUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${fileInfo.result.file_path}`;
+              
+              await supabase
+                .from('wallpapers')
+                .update({ 
+                    url: permanentImageUrl, 
+                    is_migrated: true 
+                })
+                .eq('id', record.id);
+              
+              console.log("🔗 Permanent Telegram CDN URL updated in DB");
+            }
           } else {
             console.error("❌ Telegram API Error:", tgData.description);
           }
