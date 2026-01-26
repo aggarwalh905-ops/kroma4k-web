@@ -11,6 +11,38 @@ const supabase = createClient(
 
 const generateId = () => crypto.randomBytes(10).toString('hex');
 
+/**
+ * Uploads an image to ImgBB by fetching it from Pollinations first.
+ * Ensures the API Key is used and sends the image as a Blob.
+ */
+async function uploadToImgBB(pollinationsUrl: string) {
+  try {
+    // 1. Fetch the image from Pollinations using the API Key
+    const pollinationsRes = await fetch(pollinationsUrl, {
+      headers: { 'Authorization': `Bearer ${process.env.POLLINATIONS_API_KEY}` }
+    });
+
+    if (!pollinationsRes.ok) throw new Error(`Pollinations Error: ${pollinationsRes.status}`);
+    
+    const imageBlob = await pollinationsRes.blob();
+
+    // 2. Upload that Blob to ImgBB
+    const formData = new FormData();
+    formData.append('image', imageBlob);
+    
+    const imgBBRes = await fetch(`https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await imgBBRes.json();
+    return data.success ? data.data.url : null;
+  } catch (error) {
+    console.error("❌ ImgBB Upload Error:", error);
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   console.log("🚀 --- KROMA 4K CRON START ---");
   
@@ -52,35 +84,36 @@ export async function GET(req: Request) {
 
       const finalPrompt = `${basePrompt}, ${assignedColor} color palette, cinematic lighting, 8k resolution, highly detailed, photorealistic`;
       const seed = Math.floor(Math.random() * 2147483647);
-      const apiUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(finalPrompt)}?model=flux&seed=${seed}&width=${config.width}&height=${config.height}&nologo=true&enhance=true`;
-
-      console.log(`🔗 API URL: ${apiUrl}`);
-
-      const check = await fetch(apiUrl, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${process.env.POLLINATIONS_API_KEY}` }
-      });
       
-      console.log(`📡 Pollinations Status: ${check.status}`);
+      // The generated Pollinations URL
+      const pollinationsUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(finalPrompt)}?model=flux&seed=${seed}&width=${config.width}&height=${config.height}&nologo=true&enhance=true`;
 
-      if (check.ok) {
+      console.log(`🔗 Pollinations URL: ${pollinationsUrl}`);
+
+      // --- STEP 1: UPLOAD TO IMGBB ---
+      const imgBBUrl = await uploadToImgBB(pollinationsUrl);
+
+      if (imgBBUrl) {
         const newId = generateId();
         const tagList = [category.toLowerCase(), assignedColor.toLowerCase(), "4k", "kroma4k"];
         
-        // --- STEP 1: DB INSERT ---
+        // --- STEP 2: SUPABASE INSERT ---
+        // url = Pollinations URL
+        // permanent_url = ImgBB URL
         const { data: record, error: dbError } = await supabase
           .from('wallpapers')
           .insert([{
               id: newId, 
-              url: apiUrl,
+              url: pollinationsUrl, 
+              permanent_url: imgBBUrl, 
               prompt: finalPrompt,
               category: category,
               color: assignedColor,
               device_slug: config.slug,
               downloads: 0,
-              likes: Math.floor(Math.random() * 8),
+              likes: Math.floor(Math.random() * 15),
               tags: tagList,
-              is_migrated: false,
+              is_migrated: true,
           }])
           .select().single();
 
@@ -90,9 +123,9 @@ export async function GET(req: Request) {
         }
         console.log(`💾 Saved to DB: ${newId}`);
 
-        // --- STEP 2: TELEGRAM POST & PERMANENT URL FETCH ---
+        // --- STEP 3: TELEGRAM POST ---
         try {
-          const viewUrl = `https://kroma-4k.vercel.app/wallpaper/${record.id}`;
+          const viewUrl = `https://kroma-4k.vercel.app/wallpaper/${newId}`;
           const hashtags = tagList.map(t => `#${t.replace(/\s+/g, '')}`).join(' ');
           
           const caption = 
@@ -103,14 +136,12 @@ export async function GET(req: Request) {
             `${hashtags}\n\n` +
             `🚀 <b>Join:</b> @Kroma_4K`;
 
-          console.log("📤 Sending to Telegram...");
-          
-          const tgRes = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: "@Kroma_4K",
-              photo: apiUrl,
+              photo: imgBBUrl, // Sending the permanent ImgBB link to Telegram
               caption: caption,
               parse_mode: 'HTML',
               disable_notification: true,
@@ -119,48 +150,18 @@ export async function GET(req: Request) {
               }
             })
           });
-
-          const tgData = await tgRes.json();
-          
-          if (tgData.ok) {
-            console.log("✅ Telegram Post Success! Fetching permanent file URL...");
-            
-            // Get the File ID of the highest resolution photo
-            const photos = tgData.result.photo;
-            const fileId = photos[photos.length - 1].file_id;
-
-            // Use getFile to get the direct path
-            const fileInfoRes = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
-            const fileInfo = await fileInfoRes.json();
-
-            if (fileInfo.ok) {
-              // Construct the direct CDN URL that works in <img> tags
-              const permanentImageUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${fileInfo.result.file_path}`;
-              
-              await supabase
-                .from('wallpapers')
-                .update({ 
-                    url: permanentImageUrl, 
-                    is_migrated: true 
-                })
-                .eq('id', record.id);
-              
-              console.log("🔗 Permanent Telegram CDN URL updated in DB");
-            }
-          } else {
-            console.error("❌ Telegram API Error:", tgData.description);
-          }
+          console.log("✅ Telegram Post Success");
         } catch (tgErr: any) {
-          console.error("❌ Telegram Network Error:", tgErr.message);
+          console.error("❌ Telegram Post Error:", tgErr.message);
         }
 
-        results.push(record.id);
+        results.push(newId);
       } else {
-        console.warn(`⚠️ Skipping Image: Pollinations returned ${check.status}`);
+        console.warn(`⚠️ Failed to generate/host image ${i + 1}`);
       }
     }
 
-    console.log(`🏁 --- KROMA 4K CRON FINISHED (${results.length} images) ---`);
+    console.log(`🏁 --- CRON FINISHED (${results.length} images) ---`);
     return new Response(JSON.stringify({ success: true, count: results.length, ids: results }), { status: 200 });
 
   } catch (error: any) { 
