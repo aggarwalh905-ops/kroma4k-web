@@ -145,16 +145,28 @@ export default function Kroma4K_Ultimate() {
     else setLoading(true);
 
     try {
-      // Calculate from/to based on the page state
       const currentPage = isNextPage ? page + 1 : 0;
       const from = currentPage * BATCH_SIZE;
       const to = from + BATCH_SIZE - 1;
 
       let query = supabase.from('wallpapers').select('*');
 
-      if (activeCategory !== "All") query = query.eq('category', activeCategory);
-      if (deviceFilter !== "all") query = query.eq('device_slug', deviceFilter);
+      // 1. Database level Global Search
+      if (searchTerm.trim() !== "") {
+        query = query.ilike('prompt', `%${searchTerm}%`);
+      }
 
+      // 2. Filters
+      // Check karein ki category "All" toh nahi hai
+      if (activeCategory !== "All") {
+        query = query.eq('category', activeCategory);
+      }
+      // Same for device
+      if (deviceFilter !== "all") {
+        query = query.eq('device_slug', deviceFilter);
+      }
+
+      // 3. Sorting (Optimized by our new indexes)
       query = query
         .order(sortBy === "likes" ? "likes" : "created_at", { ascending: false })
         .range(from, to);
@@ -167,7 +179,6 @@ export default function Kroma4K_Ultimate() {
         setHasMore(data.length === BATCH_SIZE);
         setImages(prev => {
           const combined = isNextPage ? [...prev, ...data] : data;
-          // Use Map for deduplication based on ID
           return Array.from(new Map(combined.map(item => [item.id, item])).values());
         });
         if (isNextPage) setPage(prev => prev + 1);
@@ -178,15 +189,18 @@ export default function Kroma4K_Ultimate() {
       setLoading(false); 
       setLoadingMore(false); 
     }
-  }, [activeCategory, deviceFilter, sortBy, page]);
+  }, [activeCategory, deviceFilter, sortBy, page, searchTerm]); 
 
   // Initial Load & Filter Watcher
   useEffect(() => {
-    // Reset page and images when filters change
-    setPage(0);
-    setImages([]);
-    loadData(false);
-  }, [activeCategory, deviceFilter, sortBy]);
+    const handler = setTimeout(() => {
+      setPage(0);
+      setImages([]);
+      loadData(false);
+    }, 400); // 0.4 seconds ka wait typing rukne par
+
+    return () => clearTimeout(handler);
+  }, [activeCategory, deviceFilter, sortBy, searchTerm]); 
 
   useEffect(() => {
     const saved = localStorage.getItem("kroma_likes");
@@ -208,12 +222,7 @@ export default function Kroma4K_Ultimate() {
     if (node) observer.current.observe(node);
   }, [loading, loadingMore, hasMore, loadData]);
 
-  const filteredImages = useMemo(() => {
-    return images.filter(i => 
-      i.prompt?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [images, searchTerm]);
+  const displayImages = images;
 
   return (
     <div className="bg-[#020202] text-white min-h-screen selection:bg-blue-600 overflow-x-hidden font-sans">
@@ -345,19 +354,19 @@ export default function Kroma4K_Ultimate() {
 
             <main className="max-w-[1800px] mx-auto px-4 md:px-8 py-8 md:py-12 min-h-screen">
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-8">
-                {filteredImages.map((img, index) => (
+                {displayImages.map((img, index) => (
                   <ImageCard 
                     key={`${img.id}-${index}`} 
                     img={img}
                     isLiked={likedImages.includes(img.id)}
                     onClick={(id: string) => router.push(`/wallpaper/${id}`)}
-                    innerRef={index === filteredImages.length - 1 ? lastElementRef : null}
+                    innerRef={index === displayImages.length - 1 ? lastElementRef : null}
                   />
                 ))}
               </div>
               
               {/* No Results State */}
-              {filteredImages.length === 0 && !loading && (
+              {displayImages.length === 0 && !loading && (
                 <div className="py-40 text-center">
                   <p className="text-gray-500 uppercase font-black tracking-widest text-xs">No assets found in this segment</p>
                 </div>
@@ -381,7 +390,7 @@ export default function Kroma4K_Ultimate() {
                   </div>
                 )}
                 
-                {!hasMore && filteredImages.length > 0 && (
+                {!hasMore && displayImages.length > 0 && (
                   <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] opacity-40">End of Neural Archive</p>
                 )}
               </div>
