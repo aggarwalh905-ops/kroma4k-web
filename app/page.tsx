@@ -41,7 +41,7 @@ const ImageCard = memo(({ img, isLiked, onClick, innerRef }: any) => {
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.4 }}
       onClick={() => onClick(img.id)}
-      className="relative aspect-[1/1] group cursor-pointer rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden bg-[#0a0a0a] border border-white/10 shadow-2xl"
+      className="relative aspect-[9/12] group cursor-pointer rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden bg-[#0a0a0a] border border-white/10 shadow-2xl"
     >
       {!isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/5 animate-pulse">
