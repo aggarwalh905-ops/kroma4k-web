@@ -1,49 +1,61 @@
 import { MetadataRoute } from 'next'
-import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  orderBy, 
-  query, 
-  limit 
-} from "firebase/firestore";
+import { createClient } from '@supabase/supabase-js'
 
-// Google supports up to 50k, but Firebase fetches are fastest at 10k or less.
-const MAX_URLS = 10000; 
+// Supabase client initialize karein
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
 
-export const revalidate = 86400; // Cache for 24 hours
+const ITEMS_PER_SITEMAP = 20000;
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://kroma-4k.vercel.app';
+export async function generateSitemaps() {
+  const { count } = await supabase
+    .from('wallpapers')
+    .select('*', { count: 'exact', head: true });
 
-  // 1. Static Pages
-  const staticPages: MetadataRoute.Sitemap = [
-    { url: baseUrl, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },
-    { url: `${baseUrl}/privacy`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
-    { url: `${baseUrl}/license`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/terms`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
-  ];
-
-  try {
-    // 2. Fetch only the most recent wallpapers (fastest query)
-    const wallRef = collection(db, "wallpapers");
-    const q = query(wallRef, orderBy("createdAt", "desc"), limit(MAX_URLS));
-    
-    const snapshot = await getDocs(q);
-    
-    const wallpaperEntries = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        url: `${baseUrl}/wallpaper/${doc.id}`,
-        lastModified: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        changeFrequency: 'weekly' as const,
-        priority: 0.7,
-      };
-    });
-
-    return [...staticPages, ...wallpaperEntries];
-  } catch (error) {
-    console.error("Sitemap fetch failed, returning static pages only:", error);
-    return staticPages;
-  }
+  const total = count || 0;
+  const numberOfSitemaps = Math.max(1, Math.ceil(total / ITEMS_PER_SITEMAP));
+  
+  return Array.from({ length: numberOfSitemaps }, (_, id) => ({ id }));
 }
+
+export default async function sitemap(props: any): Promise<MetadataRoute.Sitemap> {
+  const params = await props;
+  const sitemapId = typeof params.id !== 'undefined' ? Number(params.id) : 0;
+  const baseUrl = 'https://kroma-4k.vercel.app';
+  
+  const safeId = isNaN(sitemapId) ? 0 : sitemapId;
+  const start = safeId * ITEMS_PER_SITEMAP;
+  const end = start + ITEMS_PER_SITEMAP - 1;
+
+  // IMPORTANT: Supabase service role key 1000 ki limit bypass karne deti hai
+  const { data, error } = await supabase
+    .from('wallpapers')
+    .select('id, created_at')
+    .order('created_at', { ascending: false })
+    .range(start, end);
+
+  if (error || !data) {
+    console.error("❌ Fetch Error:", error?.message);
+    return [];
+  }
+
+  const staticPages: MetadataRoute.Sitemap = safeId === 0 ? [
+    { url: baseUrl, lastModified: new Date(), changeFrequency: 'always', priority: 1.0 },
+    { url: `${baseUrl}/privacy`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
+  ] : [];
+
+  const wallpaperEntries = data.map((item) => ({
+    url: `${baseUrl}/wallpaper/${item.id}`,
+    lastModified: item.created_at ? new Date(item.created_at) : new Date(),
+    changeFrequency: 'daily' as const,
+    priority: 0.7,
+  }));
+
+  console.log(`🚀 SITEMAP ${safeId} generated with ${wallpaperEntries.length} links`);
+
+  return [...staticPages, ...wallpaperEntries];
+}
+
+export const revalidate = 3600;
